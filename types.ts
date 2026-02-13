@@ -11,6 +11,12 @@ export interface MessageLibrary {
   midnight: MessageTemplate[];
 }
 
+export interface ScheduleConfig {
+  morningTime: string; // e.g. "07:30"
+  nightTime: string;   // e.g. "22:30"
+  randomInterval: number; // minutes, e.g. 30
+}
+
 export interface AppConfig {
   pushplusToken: string;
   notionToken: string;
@@ -18,6 +24,7 @@ export interface AppConfig {
   notionLink: string;
   vpsIp: string;
   library: MessageLibrary;
+  schedule: ScheduleConfig;
 }
 
 export enum AppTab {

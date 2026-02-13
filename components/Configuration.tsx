@@ -1,7 +1,6 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppConfig, MessageLibrary, MessageTemplate } from '../types';
-import { DEFAULT_CONFIG } from '../constants';
 
 interface ConfigurationProps {
   config: AppConfig;
@@ -9,16 +8,47 @@ interface ConfigurationProps {
 }
 
 const Configuration: React.FC<ConfigurationProps> = ({ config, setConfig }) => {
-  const [showSecrets, setShowSecrets] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
+
+  // Relative API paths ensure it works regardless of IP/Domain
+  const API_BASE = window.location.hostname === 'localhost' ? `http://${window.location.hostname}:8000` : '';
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/config`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.pushplusToken) setConfig(data);
+      })
+      .catch(() => console.log("Running in standalone mode or server offline."));
+  }, []);
+
+  const saveToVPS = async () => {
+    setSyncStatus('syncing');
+    try {
+      const response = await fetch(`${API_BASE}/api/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+      });
+      if (response.ok) {
+        setSyncStatus('success');
+        setTimeout(() => setSyncStatus('idle'), 3000);
+      } else throw new Error();
+    } catch (e) {
+      setSyncStatus('error');
+      setTimeout(() => setSyncStatus('idle'), 3000);
+    }
+  };
 
   const updateToken = (key: keyof AppConfig, value: string) => {
     setConfig(prev => ({ ...prev, [key]: value }));
   };
 
-  const handleReset = () => {
-    if (confirm("Are you sure? This will remove all your private tokens from this browser's local storage (Good for privacy before sharing screens).")) {
-      setConfig(DEFAULT_CONFIG);
-    }
+  const updateSchedule = (key: keyof AppConfig['schedule'], value: string | number) => {
+    setConfig(prev => ({ 
+        ...prev, 
+        schedule: { ...prev.schedule, [key]: value } 
+    }));
   };
 
   const updateMessage = (category: keyof MessageLibrary, index: number, field: keyof MessageTemplate, value: string) => {
@@ -32,7 +62,7 @@ const Configuration: React.FC<ConfigurationProps> = ({ config, setConfig }) => {
   const addMessage = (category: keyof MessageLibrary) => {
     setConfig(prev => {
       const newLib = { ...prev.library };
-      newLib[category].push({ title: "New Message", content: "Message body..." });
+      newLib[category].push({ title: "New Title", content: "New Content" });
       return { ...prev, library: newLib };
     });
   };
@@ -45,125 +75,85 @@ const Configuration: React.FC<ConfigurationProps> = ({ config, setConfig }) => {
     });
   };
 
-  const SectionTitle = ({ title, icon }: { title: string, icon: string }) => (
-    <h3 className="text-lg font-bold mb-4 flex items-center space-x-2 text-purple-400">
-      <i className={`fa-solid ${icon}`}></i>
-      <span>{title}</span>
-    </h3>
-  );
-
   return (
-    <div className="space-y-10 animate-in fade-in duration-500 pb-20">
-      <div className="flex justify-between items-center bg-zinc-950 p-4 rounded-2xl border border-zinc-800">
-          <div>
-              <h2 className="font-bold text-white">Privacy Control</h2>
-              <p className="text-[10px] text-zinc-500">Manage your sensitive credentials</p>
-          </div>
-          <div className="flex gap-2">
-            <button 
-                onClick={() => setShowSecrets(!showSecrets)}
-                className="text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2 rounded-lg transition-all flex items-center"
-            >
-                <i className={`fa-solid ${showSecrets ? 'fa-eye-slash' : 'fa-eye'} mr-2`}></i>
-                {showSecrets ? 'Hide' : 'Show'} Tokens
-            </button>
-            <button 
-                onClick={handleReset}
-                className="text-xs bg-red-950/30 hover:bg-red-900/50 text-red-500 px-4 py-2 rounded-lg transition-all border border-red-900/20"
-            >
-                <i className="fa-solid fa-eraser mr-2"></i>
-                Sanitize (Reset)
-            </button>
-          </div>
+    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+      <div className="sticky top-20 z-[60] flex justify-end">
+        <button 
+          onClick={saveToVPS}
+          disabled={syncStatus === 'syncing'}
+          className={`px-6 py-3 rounded-full font-bold text-white shadow-xl transition-all flex items-center gap-2 ${
+            syncStatus === 'success' ? 'bg-green-600' : 
+            syncStatus === 'error' ? 'bg-red-600' : 'bg-purple-600 hover:bg-purple-500 scale-105 active:scale-95'
+          }`}
+        >
+          <i className={`fa-solid ${
+            syncStatus === 'syncing' ? 'fa-spinner animate-spin' : 
+            syncStatus === 'success' ? 'fa-check' : 'fa-cloud-arrow-up'
+          }`}></i>
+          {syncStatus === 'syncing' ? 'Syncing...' : 
+           syncStatus === 'success' ? 'Saved to VPS' : 
+           syncStatus === 'error' ? 'Sync Failed' : 'Push to VPS'}
+        </button>
       </div>
 
-      {/* API Keys */}
-      <section>
-        <SectionTitle title="Connection Settings" icon="fa-key" />
+      <section className="bg-zinc-950 p-6 rounded-2xl border border-zinc-800">
+        <h3 className="text-lg font-bold mb-4 text-purple-400 flex items-center gap-2">
+            <i className="fa-solid fa-key"></i> API Credentials
+        </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1">
-            <label className="text-xs text-zinc-500 uppercase font-bold">VPS Public IP</label>
-            <input 
-              value={config.vpsIp}
-              onChange={(e) => updateToken('vpsIp', e.target.value)}
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2 text-sm focus:border-purple-500 outline-none"
-              placeholder="e.g. 1.2.3.4"
-            />
-          </div>
-          <div className="space-y-1">
             <label className="text-xs text-zinc-500 uppercase font-bold">PushPlus Token</label>
-            <input 
-              value={config.pushplusToken}
-              type={showSecrets ? "text" : "password"}
-              onChange={(e) => updateToken('pushplusToken', e.target.value)}
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2 text-sm focus:border-purple-500 outline-none"
-              placeholder="Your PushPlus token"
-            />
+            <input value={config.pushplusToken} onChange={(e) => updateToken('pushplusToken', e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2 text-sm focus:border-purple-500 outline-none" />
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-zinc-500 uppercase font-bold">Notion API Token</label>
-            <input 
-              value={config.notionToken}
-              type={showSecrets ? "text" : "password"}
-              onChange={(e) => updateToken('notionToken', e.target.value)}
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2 text-sm focus:border-purple-500 outline-none"
-              placeholder="secret_..."
-            />
+            <label className="text-xs text-zinc-500 uppercase font-bold">Notion Token</label>
+            <input type="password" value={config.notionToken} onChange={(e) => updateToken('notionToken', e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2 text-sm focus:border-purple-500 outline-none" />
           </div>
           <div className="space-y-1">
             <label className="text-xs text-zinc-500 uppercase font-bold">Notion Page ID</label>
-            <input 
-              value={config.notionPageId}
-              onChange={(e) => updateToken('notionPageId', e.target.value)}
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2 text-sm focus:border-purple-500 outline-none"
-              placeholder="305ee..."
-            />
+            <input value={config.notionPageId} onChange={(e) => updateToken('notionPageId', e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2 text-sm focus:border-purple-500 outline-none" />
           </div>
-          <div className="space-y-1 md:col-span-2">
-            <label className="text-xs text-zinc-500 uppercase font-bold">Notion Full URL (for easy access)</label>
-            <input 
-              value={config.notionLink}
-              onChange={(e) => updateToken('notionLink', e.target.value)}
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2 text-sm focus:border-purple-500 outline-none"
-              placeholder="https://notion.so/..."
-            />
+          <div className="space-y-1">
+            <label className="text-xs text-zinc-500 uppercase font-bold">Server Public IP (UI Display Only)</label>
+            <input value={config.vpsIp} onChange={(e) => updateToken('vpsIp', e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2 text-sm focus:border-purple-500 outline-none" />
           </div>
         </div>
       </section>
 
-      {/* Message Library */}
+      <section className="bg-zinc-950 p-6 rounded-2xl border border-zinc-800">
+        <h3 className="text-lg font-bold mb-4 text-orange-400 flex items-center gap-2">
+            <i className="fa-solid fa-clock"></i> Scheduling
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="space-y-1">
+            <label className="text-xs text-zinc-500 uppercase font-bold">Morning (HH:mm)</label>
+            <input type="time" value={config.schedule.morningTime} onChange={(e) => updateSchedule('morningTime', e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2 text-white outline-none" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-zinc-500 uppercase font-bold">Night (HH:mm)</label>
+            <input type="time" value={config.schedule.nightTime} onChange={(e) => updateSchedule('nightTime', e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2 text-white outline-none" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-zinc-500 uppercase font-bold">Random Interval (Mins)</label>
+            <input type="number" value={config.schedule.randomInterval} onChange={(e) => updateSchedule('randomInterval', parseInt(e.target.value))} className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2 text-white outline-none" />
+          </div>
+        </div>
+      </section>
+
       {(Object.keys(config.library) as Array<keyof MessageLibrary>).map((cat) => (
         <section key={cat} className="bg-zinc-950/50 p-6 rounded-2xl border border-zinc-800/50">
           <div className="flex justify-between items-center mb-4">
-            <SectionTitle title={`${cat.charAt(0).toUpperCase() + cat.slice(1)} Messages`} icon="fa-message" />
-            <button 
-              onClick={() => addMessage(cat)}
-              className="text-xs bg-purple-600 hover:bg-purple-500 text-white px-3 py-1 rounded-md transition-all"
-            >
-              <i className="fa-solid fa-plus mr-1"></i> Add
-            </button>
+            <h3 className="text-lg font-bold text-zinc-300 capitalize">{cat} Library</h3>
+            <button onClick={() => addMessage(cat)} className="text-xs bg-purple-600/20 text-purple-400 border border-purple-500/20 px-3 py-1 rounded hover:bg-purple-600/30 transition-colors">Add</button>
           </div>
           <div className="space-y-4">
             {config.library[cat].map((msg, idx) => (
-              <div key={idx} className="bg-zinc-900 p-4 rounded-xl border border-zinc-800 flex flex-col gap-3 relative group">
-                <button 
-                  onClick={() => removeMessage(cat, idx)}
-                  className="absolute top-2 right-2 text-zinc-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <i className="fa-solid fa-trash-can"></i>
+              <div key={idx} className="bg-zinc-900 p-4 rounded-xl border border-zinc-800 relative group">
+                <button onClick={() => removeMessage(cat, idx)} className="absolute top-2 right-2 text-zinc-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <i className="fa-solid fa-trash-can"></i>
                 </button>
-                <input 
-                  value={msg.title}
-                  onChange={(e) => updateMessage(cat, idx, 'title', e.target.value)}
-                  className="bg-transparent text-white font-bold text-sm outline-none border-b border-transparent focus:border-purple-500/50"
-                  placeholder="Message Title"
-                />
-                <textarea 
-                  value={msg.content}
-                  onChange={(e) => updateMessage(cat, idx, 'content', e.target.value)}
-                  className="bg-zinc-950/50 p-3 rounded-lg text-xs text-zinc-400 outline-none border border-zinc-800 focus:border-purple-500/50 min-h-[60px]"
-                  placeholder="Aran's words..."
-                />
+                <input value={msg.title} onChange={(e) => updateMessage(cat, idx, 'title', e.target.value)} className="w-full bg-transparent font-bold text-sm border-b border-transparent focus:border-purple-500 outline-none mb-2" />
+                <textarea value={msg.content} onChange={(e) => updateMessage(cat, idx, 'content', e.target.value)} className="w-full bg-transparent text-xs text-zinc-400 outline-none min-h-[40px] resize-none" />
               </div>
             ))}
           </div>

@@ -11,22 +11,28 @@ const Diary: React.FC<DiaryProps> = ({ config }) => {
   const [mood, setMood] = useState('💜');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 
+  const API_BASE = window.location.hostname === 'localhost' ? `http://${window.location.hostname}:8000` : '';
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim()) return;
 
     setStatus('loading');
     try {
-      // In a real scenario, this connects to the VPS:
-      // Since we don't have a direct Notion proxy in Python yet (except for MCP)
-      // We will assume this is a placeholder or you can implement a /diary endpoint in server.py later
-      // For now, let's keep the simulation but it would be easy to add.
-      await new Promise(r => setTimeout(r, 1500));
-      setStatus('success');
-      setContent('');
-      setTimeout(() => setStatus('idle'), 3000);
+      const response = await fetch(`${API_BASE}/api/diary`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mood, content })
+      });
+      
+      if (response.ok) {
+        setStatus('success');
+        setContent('');
+        setTimeout(() => setStatus('idle'), 3000);
+      } else throw new Error();
     } catch (err) {
       setStatus('error');
+      setTimeout(() => setStatus('idle'), 3000);
     }
   };
 
@@ -37,16 +43,10 @@ const Diary: React.FC<DiaryProps> = ({ config }) => {
       <div className="mb-8 text-center">
         <h2 className="text-2xl font-bold mb-2">Write to Homra Diary</h2>
         <div className="text-zinc-400 text-sm flex justify-center items-center gap-2">
-            <span>Target Page:</span>
-            <a 
-                href={config.notionLink} 
-                target="_blank" 
-                rel="noreferrer"
-                className="font-mono text-xs text-purple-400 hover:text-purple-300 bg-purple-900/30 px-2 py-1 rounded transition-colors flex items-center"
-            >
-                Notion/{config.notionPageId.slice(0, 8)}...
-                <i className="fa-solid fa-arrow-up-right-from-square ml-1 text-[10px]"></i>
-            </a>
+            <span>Target:</span>
+            <span className="font-mono text-xs text-purple-400 bg-purple-900/30 px-2 py-1 rounded">
+                Notion / VPS Local Log
+            </span>
         </div>
       </div>
 
@@ -75,7 +75,7 @@ const Diary: React.FC<DiaryProps> = ({ config }) => {
             rows={6}
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl p-5 focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 outline-none transition-all placeholder-zinc-800 text-zinc-200 text-sm"
+            className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl p-5 focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 outline-none transition-all placeholder-zinc-800 text-zinc-200 text-sm resize-none"
             placeholder="Tell Aran about your research, your patients, or your day..."
           />
         </div>
@@ -83,12 +83,12 @@ const Diary: React.FC<DiaryProps> = ({ config }) => {
         <button
           type="submit"
           disabled={status === 'loading'}
-          className="w-full py-4 bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-800 rounded-2xl font-bold text-lg hover:shadow-xl hover:shadow-purple-500/20 transition-all active:scale-[0.98] disabled:opacity-50 border border-purple-400/20"
+          className="w-full py-4 bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-800 rounded-2xl font-bold text-lg hover:shadow-xl hover:shadow-purple-500/20 transition-all active:scale-[0.98] disabled:opacity-50 border border-purple-400/20 shadow-lg shadow-purple-900/30"
         >
           {status === 'loading' ? (
             <i className="fa-solid fa-spinner animate-spin"></i>
           ) : (
-            <div className="flex items-center justify-center space-x-2">
+            <div className="flex items-center justify-center space-x-2 text-white">
               <i className="fa-solid fa-paper-plane"></i>
               <span>Send to Homra Tavern</span>
             </div>
@@ -99,6 +99,12 @@ const Diary: React.FC<DiaryProps> = ({ config }) => {
           <div className="text-center text-green-400 bg-green-400/5 border border-green-400/20 p-4 rounded-xl animate-in zoom-in duration-300">
             <i className="fa-solid fa-check-circle mr-2"></i>
             Recorded! Aran is guarding your secret.
+          </div>
+        )}
+        {status === 'error' && (
+          <div className="text-center text-red-400 bg-red-400/5 border border-red-400/20 p-4 rounded-xl animate-in zoom-in duration-300">
+            <i className="fa-solid fa-triangle-exclamation mr-2"></i>
+            VPS Connection Failed. Is the server running?
           </div>
         )}
       </form>

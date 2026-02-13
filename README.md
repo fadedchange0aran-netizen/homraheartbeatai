@@ -1,64 +1,35 @@
 
-# 🖤 Homra Heartbeat 2.0 - Universal Deployment Guide
+# 🖤 Homra Heartbeat 2.0 (Universal Repository)
 
-This project consists of a **React Dashboard** and a **Python MCP Server**.
+这是一个全栈个人助手系统，集成了：
+- **Python 后端**: 管理 API、持久化配置、动态定时任务。
+- **React 仪表盘**: 远程更新配置、手动触发推送、记录日记。
 
-## 🛡️ Security First (Read Before Pushing to GitHub)
-1.  **Dashboard Configuration**: Your keys (PushPlus, Notion) are stored in your **browser's LocalStorage**. They are *not* written to the source code files.
-2.  **server.py Generation**: The "Deployment" tab generates a `server.py` containing the keys you entered. **Do not commit this specific file to a public GitHub repo.**
-3.  **Sanitization**: Use the **"Sanitize (Reset)"** button in the Aran Config tab to clear all keys from the dashboard before making screenshots or sharing code.
+## 🚀 快速开始
 
----
-
-## 🚀 Deployment to RackNerd VPS (Full Stack)
-
-### Step 1: Prepare the Frontend
-In your local project folder:
+### 1. 克隆并运行 (VPS 端)
 ```bash
-npm run build
-```
-This creates a `dist` folder.
+git clone https://github.com/YOUR_USER/homra-heartbeat.git
+cd homra-heartbeat
 
-### Step 2: Upload to VPS
-```bash
-scp -r dist root@YOUR_VPS_IP:/root/
+# 安装依赖
+pip install -r requirements.txt
+
+# 启动服务
+python server.py
 ```
 
-### Step 3: Server Setup
-SSH into your RackNerd VPS:
-```bash
-ssh root@YOUR_VPS_IP
-```
+### 2. 配置与部署
+- 默认端口为 `8000`。
+- 首次运行会自动创建 `config.json`。
+- 访问 `http://YOUR_IP:8000/` 即可进入管理后台。
 
-Install the engine:
-```bash
-pip install fastapi uvicorn mcp httpx notion-client apscheduler
-```
+### 3. 如何在前端修改后即时生效？
+1. 在 **Aran Config** 标签页修改参数（如把早安时间改为 06:00）。
+2. 点击右上角的 **"Sync to Server"** 按钮。
+3. 后端会自动保存配置并重载定时器，无需重启。
 
-### Step 4: Run with Environment Variables (Secure Method)
-Instead of hardcoding keys in `server.py`, you can run the server like this:
-```bash
-export PUSHPLUS_TOKEN="your_real_token"
-export NOTION_TOKEN="your_real_notion_secret"
-export NOTION_PAGE_ID="your_page_id"
-
-nohup python3 server.py > heartbeat.log 2>&1 &
-```
-*The server will prioritize these environment variables over whatever is written in the script.*
-
----
-
-## 🐙 Publishing to GitHub (Safe Version)
-1.  Make sure your `constants.ts` and `App.tsx` have no hardcoded secrets.
-2.  Create `.gitignore` and add `dist/` and `heartbeat.log`.
-3.  Push to GitHub:
-    ```bash
-    git init
-    git add .
-    git commit -m "Public release"
-    git remote add origin https://github.com/USER/REPO.git
-    git push -u origin main
-    ```
-
-## 🤖 Rikkahub Integration
-- **SSE URL**: `http://YOUR_VPS_IP:8000/sse`
+## 🛠️ 技术细节
+- **Persistence**: 所有的修改都保存在服务器本地的 `config.json`。
+- **Auto-Sync**: 前端加载时会自动尝试同步服务器最新的配置。
+- **Dynamic Scheduler**: 使用 APScheduler 实现不重启重载任务。
