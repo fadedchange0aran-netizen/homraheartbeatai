@@ -1,0 +1,5 @@
+{
+  "name": "Homra Heartbeat 2.0 Dashboard",
+  "description": "A management interface for the Homra Heartbeat 2.0 system, featuring remote triggers, diary management, and the full Python server source code for deployment.",
+  "requestFramePermissions": []
+}
